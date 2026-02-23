@@ -17,7 +17,6 @@ def word_hash(word):
 
 
 def make_hash(text):
-
     stop_words = {
         "with", "an", "this", "of", "are", "by",
         "the", "was", "in", "that", "a", "as",
@@ -30,7 +29,6 @@ def make_hash(text):
 
     for word in words:
         clean = ""
-
         for letter in word:
             if letter.isalnum():
                 clean += letter
@@ -40,14 +38,14 @@ def make_hash(text):
 
     bits = [0] * 64
 
-    for word in counts:
+    for word, freq in counts.items():
         number = word_hash(word)
 
         for i in range(64):
             if number & (1 << i):
-                bits[i] += counts[word]
+                bits[i] += freq
             else:
-                bits[i] -= counts[word]
+                bits[i] -= freq
 
     result = 0
     for i in range(64):
@@ -58,22 +56,43 @@ def make_hash(text):
 
 
 def get_page_hash(link):
-    response = requests.get(link)
-    if response.status_code != 200:
-        return None
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    return make_hash(soup.get_text(" "))
+    try:
+        response = requests.get(link, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            print("Failed to fetch:", link)
+            return None
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        text = soup.get_text(" ")
+        return make_hash(text)
+
+    except Exception as e:
+        print("Error fetching:", link)
+        print(e)
+        return None
 
 
 if __name__ == "__main__":
 
     if len(sys.argv) < 3:
         print("Enter two links")
-    else:
-        h1 = get_page_hash(sys.argv[1])
-        h2 = get_page_hash(sys.argv[2])
+        sys.exit()
 
-        if h1 and h2:
-            diff = bin(h1 ^ h2).count("1")
-            print("Common bits:", 64 - diff)
+    url1 = sys.argv[1]
+    url2 = sys.argv[2]
+
+    h1 = get_page_hash(url1)
+    h2 = get_page_hash(url2)
+
+    if h1 is None or h2 is None:
+        print("Unable to compare pages")
+        sys.exit()
+
+    diff = bin(h1 ^ h2).count("1")
+    common_bits = 64 - diff
+    print("Common bits:", common_bits, "out of 64")
